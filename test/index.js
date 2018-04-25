@@ -387,34 +387,36 @@ test('globrex: path segments option', t => {
 
 
 test('globrex: path segments option windows', t => {
-    t.plan(15);
+    t.plan(17);
 
     const res1 = globrex(`C:\\Users\\foo\\bar\\baz`, { windows:true });
     t.equal(res1.segments.join('  '), `/^C:$/  /^Users$/  /^foo$/  /^bar$/  /^baz$/`);
-    t.equal(`${res1.regex}`, `/^C:\\\\Users\\\\foo\\\\bar\\\\baz$/`);
-    t.equal(res1.regex.test(`C:\\Users\\foo\\bar\\baz`), true);
+    t.equal(`${res1.regex}`, `/^C:\\\\+Users\\\\+foo\\\\+bar\\\\+baz$/`);
+    t.true(res1.regex.test(`C:\\\\Users\\\\foo\\\\bar\\\\baz`));
+    t.true(res1.regex.test(`C:\\Users\\foo\\bar\\baz`));
 
     const res2 = globrex(`Users\\foo\\bar\\baz`, { windows:true });
     t.equal(res2.segments.join('  '), `/^Users$/  /^foo$/  /^bar$/  /^baz$/`);
-    t.equal(`${res2.regex}`, `/^Users\\\\foo\\\\bar\\\\baz$/`);
+    t.equal(`${res2.regex}`, `/^Users\\\\+foo\\\\+bar\\\\+baz$/`);
 
     const res3 = globrex(`Users\\foo\\bar.{md,js}`, { windows:true, extended:true });
     t.equal(res3.segments.join('  '), `/^Users$/  /^foo$/  /^bar\\.(md|js)$/`);
-    t.equal(`${res3.regex}`, `/^Users\\\\foo\\\\bar\\.(md|js)$/`);
-    t.equal(res3.regex.test(`Users\\foo\\bar.js`), true);
-    t.equal(res3.regex.test(`Users\\foo\\bar.mp3`), false);
+    t.equal(`${res3.regex}`, `/^Users\\\\+foo\\\\+bar\\.(md|js)$/`);
+    t.true(res3.regex.test(`Users\\\\foo\\\\bar.js`));
+    t.false(res3.regex.test(`Users\\foo\\bar.mp3`));
+    t.true(res3.regex.test(`Users\\foo\\bar.js`));
 
     const res4 = globrex(`Users\\\\foo\\bar.{md,js}`, { windows:true, extended:true, strict:false });
     t.equal(res4.segments.join('  '), `/^Users$/  /^foo$/  /^bar\\.(md|js)$/`);
-    t.equal(`${res4.regex}`, `/^Users\\\\?\\\\foo\\\\bar\\.(md|js)$/`);
+    t.equal(`${res4.regex}`, `/^Users\\\\+?foo\\\\+bar\\.(md|js)$/`);
 
     const res5 = globrex(`Users\\\\foo\\bar.{md,js}`, { windows:true, extended:true, strict:true });
     t.equal(res5.segments.join('  '), `/^Users$/  /^foo$/  /^bar\\.(md|js)$/`);
-    t.equal(`${res5.regex}`, `/^Users\\\\\\\\foo\\\\bar\\.(md|js)$/`);
+    t.equal(`${res5.regex}`, `/^Users\\\\+foo\\\\+bar\\.(md|js)$/`);
 
     const res6 = globrex(`/Users\\\\foo\\bar.{md,js}`, { windows:true, extended:true });
     t.equal(res6.segments.join('  '), `/^\\/Users$/  /^foo$/  /^bar\\.(md|js)$/`);
-    t.equal(`${res6.regex}`, `/^\\/Users\\\\?\\\\foo\\\\bar\\.(md|js)$/`);
+    t.equal(`${res6.regex}`, `/^\\/Users\\\\+?foo\\\\+bar\\.(md|js)$/`);
 });
 
 test('globrex: stress testing', t => {
