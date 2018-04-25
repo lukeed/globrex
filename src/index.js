@@ -1,4 +1,4 @@
-const isWin = require('os').platform() === 'win32';
+const isWin = process.platform === 'win32';
 
 /**
  * Convert any glob pattern to a JavaScript Regexp object
@@ -59,7 +59,7 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
                 break;
             case '/':
                 add('\\' + c, !windows);
-                if (n === '/' && !strict) reStr += '?'; 
+                if (n === '/' && !strict) reStr += '?';
                 break;
             case '(':
                 if (ext.length) {
