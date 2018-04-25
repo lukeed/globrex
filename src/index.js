@@ -54,8 +54,11 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
                 add('\\' + c)
                 break;
             case '\\':
-                add('\\' + c, windows);
-                if (n === '\\' && !strict) reStr += '?';
+                add('\\\\\+', windows);
+                if (n === '\\') {
+                    ++i; // skip next
+                    if (!strict) reStr += '?';
+                }
                 break;
             case '/':
                 add('\\' + c, !windows);
