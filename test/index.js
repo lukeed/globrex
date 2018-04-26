@@ -1,388 +1,633 @@
 'use strict';
 
-const test = require('tape');
 const fs = require('fs');
+const test = require('tape');
 const globrex = require('../');
 
-const g = (glob, str, opts) => globrex(glob, opts).regex.test(str);
+function g(t, glob, expect, opts) {
+    let { regex } = globrex(glob, opts);
+    t.is(regex.toString(), expect, '~> regex matches expectant');
+    return regex;
+}
 
 test('globrex: standard', t => {
-    t.plan(5);
     let res = globrex('*.js');
-    t.equal(typeof globrex, 'function', 'consturctor is a typeof function');
-    t.equal(res instanceof Object, true, 'returns object');
-    t.equal(res.regex.toString(), '/^.*\\.js$/', 'returns regex object');
-    t.equal(res.string, '^.*\\.js$', 'returns string version');
-    t.equal(Array.isArray(res.segments), true, 'returns array of segments');
+    t.is(typeof globrex, 'function', 'consturctor is a typeof function');
+    t.true(res instanceof Object, 'returns object');
+    t.is(res.regex.toString(), '/^.*\\.js$/', 'returns regex object');
+    t.is(res.string, '^.*\\.js$', 'returns string version');
+    t.true(Array.isArray(res.segments), 'returns array of segments');
+    t.end();
 });
 
 test('globrex: Standard * matching', t => {
-    t.plan(12);
+    let rgx;
 
-    t.equal(g('*', 'foo'), true, 'match everything');
-    t.equal(g('*', 'foo', { flags:'g' }), true, 'match everything');
+    rgx = g(t, '*', '/^.*$/');
+    t.true(rgx.test('hello'), 'matches everything');
 
-    t.equal(g('f*', 'foo'), true, 'match the end');
-    t.equal(g('f*', 'foo', { flags:'g' }), true, 'match the end');
+    rgx = g(t, '*', '/.*/g', { flags:'g' });
+    t.true(rgx.test('foo'), 'matches everything');
 
-    t.equal(g('*o', 'foo'), true, 'match the start');
-    t.equal(g('*o', 'foo', { flags:'g' }), true, 'match the start');
+    rgx = g(t, 'f*', '/^f.*$/');
+    t.true(rgx.test('foo'), 'match the end');
 
-    t.equal(g('f*uck', 'firetruck'), true, 'match the middle');
-    t.equal(g('f*uck', 'firetruck', { flags:'g' }), true, 'match the middle');
+    rgx = g(t, 'f*', '/f.*/g', { flags:'g' });
+    t.true(rgx.test('foo'), 'match the end');
 
-    t.equal(g('uc', 'firetruck'), false, 'do not match without g');
-    t.equal(g('uc', 'firetruck'), false, 'match anywhere with RegExp "g"');
+    rgx = g(t, '*o', '/^.*o$/');
+    t.true(rgx.test('foo'), 'match the start');
 
-    t.equal(g('f*uck', 'fuck'), true, 'match zero characters');
-    t.equal(g('f*uck', 'fuck', { flags:'g' }), true, 'match zero characters');
+    rgx = g(t, '*o', '/.*o/g', { flags:'g' });
+    t.true(rgx.test('foo'), 'match the start');
+
+    rgx = g(t, 'f*uck', '/^f.*uck$/');
+    t.true(rgx.test('firetruck'), 'match the middle');
+
+    rgx = g(t, 'f*uck', '/f.*uck/g', { flags:'g' });
+    t.true(rgx.test('firetruck'), 'match the middle');
+
+    rgx = g(t, 'uc', '/^uc$/');
+    t.false(rgx.test('firetruck'), 'do not match without global flag');
+
+    rgx = g(t, 'uc', '/uc/g', { flags:'g' });
+    t.true(rgx.test('firetruck'), 'match anywhere with RegExp "g" flag');
+
+    rgx = g(t, 'f*uck', '/^f.*uck$/');
+    t.true(rgx.test('fuck'), 'match zero characters');
+
+    rgx = g(t, 'f*uck', '/f.*uck/g', { flags:'g' });
+    t.true(rgx.test('fuck'), 'match zero characters');
+
+    t.end();
 });
 
 test('globrex: advance * matching', t => {
-    t.plan(21);
+    let rgx;
 
-    t.equal(g('*.min.js', 'http://example.com/jquery.min.js', { globstar:false }), true, 'complex match');
-    t.equal(g('*.min.*', 'http://example.com/jquery.min.js', { globstar:false }), true, 'complex match');
-    t.equal(g('*/js/*.js', 'http://example.com/js/jquery.min.js', { globstar:false }), true, 'complex match');
+    rgx = g(t, '*.min.js', '/^.*\\.min\\.js$/', { globstar:false });
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'complex match');
 
-    t.equal(g('*.min.*', 'http://example.com/jquery.min.js', { flags:'g' }), true, 'complex match global');
-    t.equal(g('*.min.js', 'http://example.com/jquery.min.js', { flags:'g' }), true, 'complex match global');
-    t.equal(g('*/js/*.js', 'http://example.com/js/jquery.min.js', { flags:'g' }), true, 'complex match global');
+    rgx = g(t, '*.min.*', '/^.*\\.min\\..*$/', { globstar:false });
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'complex match');
 
-    const testStr = '\\/$^+?.()=!|{},[].*';
-    t.equal(g(testStr, testStr), true, 'battle test complex string - strict');
-    t.equal(g(testStr, testStr, { flags:'g' }), true, 'battle test complex string - strict');
+    rgx = g(t, '*/js/*.js', '/^.*\\/js\\/.*\\.js$/', { globstar:false });
+    t.true(rgx.test('http://example.com/js/jquery.min.js'), 'complex match');
+    t.false(rgx.test('example.com/js/jquery.min.css'));
+    t.false(rgx.test('example.com/css/jquery.min.js'));
 
-    t.equal(g('.min.', 'http://example.com/jquery.min.js'), false, 'matches without/with using RegExp "g"');
-    t.equal(g('*.min.*', 'http://example.com/jquery.min.js'), true, 'matches without/with using RegExp "g"');
-    t.equal(g('.min.', 'http://example.com/jquery.min.js', { flags:'g' }), true, 'matches without/with using RegExp "g"');
+    rgx = g(t, '*.min.*', '/.*\\.min\\..*/g', { flags:'g' });
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'complex match global');
+    t.false(rgx.test('example.com/jquery.js'));
+    t.false(rgx.test('mint.com'));
 
-    t.equal(g('http:', 'http://example.com/jquery.min.js'), false, 'matches without/with using RegExp "g"');
-    t.equal(g('http:*', 'http://example.com/jquery.min.js'), true, 'matches without/with using RegExp "g"');
-    t.equal(g('http:', 'http://example.com/jquery.min.js', { flags:'g' }), true, 'matches without/with using RegExp "g"');
+    rgx = g(t, '*.min.js', '/.*\\.min\\.js/g', { flags:'g' });
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'complex match global');
 
-    t.equal(g('min.js', 'http://example.com/jquery.min.js'), false, 'matches without/with using RegExp "g"');
-    t.equal(g('*.min.js', 'http://example.com/jquery.min.js'), true, 'matches without/with using RegExp "g"');
-    t.equal(g('min.js', 'http://example.com/jquery.min.js', { flags:'g' }), true, 'matches without/with using RegExp "g"');
+    rgx = g(t, '*/js/*.js', '/.*\\/js\\/.*\\.js/g', { flags:'g' });
+    t.true(rgx.test('http://example.com/js/jquery.min.js'), 'complex match global');
 
-    t.equal(g('min', 'http://example.com/jquery.min.js', { flags:'g' }), true, 'match anywhere (globally) using RegExp "g"');
-    t.equal(g('/js/', 'http://example.com/js/jquery.min.js', { flags:'g' }), true, 'match anywhere (globally) using RegExp "g"');
+    let testStr = '\\/$^+?.()=!|{},[].*';
 
-    t.equal(g('/js*jq*.js', 'http://example.com/js/jquery.min.js'), false);
-    t.equal(g('/js*jq*.js', 'http://example.com/js/jquery.min.js', { flags:'g' }), true);
+    rgx = g(t, testStr, '/^\\/\\/\\$\\^\\+\\?\\.\\(\\)\\=\\!\\|\\{\\}\\,\\[\\]\\..*$/');
+    console.log(rgx);
+    t.true(rgx.test(testStr), 'battle test complex string - strict');
+
+    rgx = g(t, testStr, '/\\/\\/\\$\\^\\+\\?\\.\\(\\)\\=\\!\\|\\{\\}\\,\\[\\]\\..*/g', { flags:'g' });
+    console.log(rgx);
+    t.true(rgx.test(testStr), 'battle test complex string - global');
+
+    rgx = g(t, '.min.', '/^\\.min\\.$/');
+    t.false(rgx.test('http://example.com/jquery.min.js'), 'matches without/with using RegExp "g"');
+
+    rgx = g(t, '*.min.*', '/^.*\\.min\\..*$/');
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'matches without/with using RegExp "g"');
+
+    rgx = g(t, '.min.', '/\\.min\\./g', { flags:'g' });
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'matches without/with using RegExp "g"');
+
+    rgx = g(t, 'http:', '/^http:$/');
+    t.false(rgx.test('http://example.com/jquery.min.js'), 'matches without/with using RegExp "g"');
+
+    rgx = g(t, 'http:*', '/^http:.*$/');
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'matches without/with using RegExp "g"');
+
+    rgx = g(t, 'http:', '/http:/g', { flags:'g' });
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'matches without/with using RegExp "g"');
+
+    rgx = g(t, 'min.js', '/^min\\.js$/');
+    t.false(rgx.test('http://example.com/jquery.min.js'), 'matches without/with using RegExp "g"');
+
+    rgx = g(t, '*.min.js', '/^.*\\.min\\.js$/');
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'matches without/with using RegExp "g"');
+
+    rgx = g(t, 'min.js', '/min\\.js/g', { flags:'g' });
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'matches without/with using RegExp "g"');
+
+    rgx = g(t, 'min', '/min/g', { flags:'g' });
+    t.true(rgx.test('http://example.com/jquery.min.js'), 'match anywhere (globally) using RegExp "g"');
+
+    rgx = g(t, '/js/', '/\\/js\\//g', { flags:'g' });
+    t.true(rgx.test( 'http://example.com/js/jquery.min.js'), 'match anywhere (globally) using RegExp "g"');
+
+    rgx = g(t, '/js*jq*.js', '/^\\/js.*jq.*\\.js$/');
+    t.false(rgx.test('http://example.com/js/jquery.min.js'));
+
+    rgx = g(t, '/js*jq*.js', '/\\/js.*jq.*\\.js/g', { flags:'g' });
+    t.true(rgx.test('http://example.com/js/jquery.min.js'));
+
+    t.end();
 });
 
 test('globrex: ? match one character, no more and no less', t => {
-    t.plan(15);
+    let rgx;
 
-    t.equal(g('f?o', 'foo', { extended:true }), true)
-    t.equal(g('f?o', 'fooo', { extended:true }), false)
-    t.equal(g('f?oo', 'foo', { extended:true }), false)
+    rgx = g(t, 'f?o', '/^f.o$/', { extended:true });
+    t.true(rgx.test('foo'));
 
-    const tester = globstar => {
-        t.equal(g('f?o', 'foo', { extended:true, globstar, flags:'g' }), true)
-        t.equal(g('f?o', 'fooo', { extended:true, globstar, flags:'g' }), true)
-        t.equal(g('f?o?', 'fooo', { extended:true, globstar, flags:'g' }), true)
+    rgx = g(t, 'f?o', '/^f.o$/', { extended:true });
+    t.false(rgx.test('fooo'));
 
-        t.equal(g('?fo', 'fooo', { extended:true, globstar, flags:'g' }), false)
-        t.equal(g('f?oo', 'foo', { extended:true, globstar, flags:'g' }), false)
-        t.equal(g('foo?', 'foo', { extended:true, globstar, flags:'g' }), false)
-    }
+    rgx = g(t, 'f?oo', '/^f.oo$/', { extended:true });
+    t.false(rgx.test('foo'));
 
-    tester(true);
-    tester(false);
+    [
+        ['f?o', '/f.o/g', 'foo', true],
+        ['f?o', '/f.o/g', 'fooo', true],
+        ['f?o?', '/f.o./g', 'fooo', true],
+        ['?fo', '/.fo/g', 'fooo', false],
+        ['f?oo', '/f.oo/g', 'foo', false],
+        ['foo?', '/foo./g', 'foo', false],
+    ].forEach(arr => {
+        rgx = g(t, arr[0], arr[1], { extended:true, globstar:true, flags:'g' });
+        t.is(rgx.test(arr[2]), arr[3], `${arr[1]}.test(${arr[2]}) = ${arr[3]} (globstar:true)`);
+        rgx = g(t, arr[0], arr[1], { extended:true, globstar:false, flags:'g' });
+        t.is(rgx.test(arr[2]), arr[3], `${arr[1]}.test(${arr[2]}) = ${arr[3]} (globstar:false)`);
+    });
+
+    t.end();
 });
 
 test('globrex: [] match a character range', t => {
-    t.plan(13);
+    let rgx, o={ extended:true };
 
-    t.equal(g('fo[oz]', 'foo', { extended:true }), true);
-    t.equal(g('fo[oz]', 'foz', { extended:true }), true);
-    t.equal(g('fo[oz]', 'fog', { extended:true }), false);
+    rgx = g(t, 'fo[oz]', '/^fo[oz]$/', o);
+    t.true(rgx.test('foo'));
 
-    t.equal(g('fo[a-z]', 'fob', { extended:true }), true);
-    t.equal(g('fo[a-d]', 'fot', { extended:true }), false);
+    rgx = g(t, 'fo[oz]', '/^fo[oz]$/', o);
+    t.true(rgx.test('foz'));
 
-    t.equal(g('fo[!tz]', 'fot', { extended:true }), false);
-    t.equal(g('fo[!tz]', 'fob', { extended:true }), true);
+    rgx = g(t, 'fo[oz]', '/^fo[oz]$/', o);
+    t.false(rgx.test('fog'));
 
-    const tester = globstar => {
-        t.equal(g('fo[oz]', 'foo', { extended:true, globstar, flags:'g' }), true);
-        t.equal(g('fo[oz]', 'foz', { extended:true, globstar, flags:'g' }), true);
-        t.equal(g('fo[oz]', 'fog', { extended:true, globstar, flags:'g' }), false);
-    }
+    rgx = g(t, 'fo[a-z]', '/^fo[a-z]$/', o);
+    t.true(rgx.test('fob'));
 
-    tester(true);
-    tester(false);
+    rgx = g(t, 'fo[a-d]', '/^fo[a-d]$/', o);
+    t.false(rgx.test('fot'));
+
+    rgx = g(t, 'fo[!tz]', '/^fo[^tz]$/', o);
+    t.false(rgx.test('fot'));
+
+    rgx = g(t, 'fo[!tz]', '/^fo[^tz]$/', o);
+    t.true(rgx.test('fob'));
+
+    [
+        ['fo[oz]', '/fo[oz]/g', 'foo', true],
+        ['fo[oz]', '/fo[oz]/g', 'foz', true],
+        ['fo[oz]', '/fo[oz]/g', 'fog', false],
+    ].forEach(arr => {
+        rgx = g(t, arr[0], arr[1], { ...o, globstar:true, flags:'g' });
+        t.is(rgx.test(arr[2]), arr[3], `${arr[1]}.test(${arr[2]}) = ${arr[3]} (globstar:true)`);
+        rgx = g(t, arr[0], arr[1], { ...o, globstar:false, flags:'g' });
+        t.is(rgx.test(arr[2]), arr[3], `${arr[1]}.test(${arr[2]}) = ${arr[3]} (globstar:false)`);
+    });
+
+    t.end();
 })
 
 test('globrex: [] extended character ranges', t => {
-    t.plan(13);
+    let rgx, o={ extended:true };
 
-    t.equal(g('[[:alnum:]]/bar.txt', 'a/bar.txt', { extended:true }), true);
-    t.equal(g('@([[:alnum:]abc]|11)/bar.txt', '11/bar.txt', { extended:true }), true);
-    t.equal(g('@([[:alnum:]abc]|11)/bar.txt', 'a/bar.txt', { extended:true }), true);
-    t.equal(g('@([[:alnum:]abc]|11)/bar.txt', 'b/bar.txt', { extended:true }), true);
-    t.equal(g('@([[:alnum:]abc]|11)/bar.txt', 'c/bar.txt', { extended:true }), true);
-    t.equal(g('@([[:alnum:]abc]|11)/bar.txt', 'abc/bar.txt', { extended:true }), false);
-    t.equal(g('@([[:alnum:]abc]|11)/bar.txt', '3/bar.txt', { extended:true }), true);
+    rgx = g(t, '[[:alnum:]]/bar.txt', '/^[(\\w|\\d)]\\/bar\\.txt$/', o);
+    t.false(rgx.test('!/bar.txt'));
+    t.true(rgx.test('a/bar.txt'));
 
-    t.equal(g('[[:digit:]]/bar.txt', '1/bar.txt', { extended:true }), true);
-    t.equal(g('[[:digit:]b]/bar.txt', 'b/bar.txt', { extended:true }), true);
-    t.equal(g('[![:digit:]b]/bar.txt', 'a/bar.txt', { extended:true }), true);
+    rgx = g(t, '@([[:alnum:]abc]|11)/bar.txt', '/^([(\\w|\\d)abc]|11){1}\\/bar\\.txt$/', o);
+    t.true(rgx.test('11/bar.txt'));
+    t.true(rgx.test('a/bar.txt'));
+    t.true(rgx.test('b/bar.txt'));
+    t.true(rgx.test('c/bar.txt'));
+    t.false(rgx.test('abc/bar.txt'));
+    t.true(rgx.test('3/bar.txt'));
 
-    t.equal(g('[[:alnum:]]/bar.txt', '!/bar.txt', { extended:true }), false);
-    t.equal(g('[[:digit:]]/bar.txt', 'a/bar.txt', { extended:true }), false);
-    t.equal(g('[[:digit:]b]/bar.txt', 'a/bar.txt', { extended:true }), false);
+    rgx = g(t, '[[:digit:]]/bar.txt', '/^[\\d]\\/bar\\.txt$/', o);
+    t.false(rgx.test('a/bar.txt'));
+    t.true(rgx.test('1/bar.txt'));
+
+    rgx = g(t, '[[:digit:]b]/bar.txt', '/^[\\db]\\/bar\\.txt$/', o);
+    t.true(rgx.test('b/bar.txt'));
+    t.false(rgx.test('a/bar.txt'));
+
+    rgx = g(t, '[![:digit:]b]/bar.txt', '/^[^\\db]\\/bar\\.txt$/', o);
+    t.true(rgx.test('a/bar.txt'));
+
+    t.end();
 });
 
 test('globrex: {} match a choice of different substrings', t => {
-    t.plan(12);
+    let rgx, o={ extended:true };
 
-    t.equal(g('foo{bar,baaz}', 'foobaaz', { extended:true }), true);
-    t.equal(g('foo{bar,baaz}', 'foobar', { extended:true }), true);
-    t.equal(g('foo{bar,baaz}', 'foobuzz', { extended:true }), false);
-    t.equal(g('foo{bar,b*z}', 'foobuzz', { extended: true }), true);
+    rgx = g(t, 'foo{bar,baaz}', '/^foo(bar|baaz)$/', o);
+    t.true(rgx.test('foobaaz'));
+    t.true(rgx.test('foobar'));
+    t.false(rgx.test('foobuzz'));
 
-    const tester = globstar => {
-        t.equal(g('foo{bar,baaz}', 'foobaaz', { extended:true, globstar, flag:'g' }), true);
-        t.equal(g('foo{bar,baaz}', 'foobar', { extended:true, globstar, flag:'g' }), true);
-        t.equal(g('foo{bar,baaz}', 'foobuzz', { extended:true, globstar, flag:'g' }), false);
-        t.equal(g('foo{bar,b*z}', 'foobuzz', { extended:true, globstar, flag:'g'}), true);
-    }
+    rgx = g(t, 'foo{bar,b*z}', '/^foo(bar|b.*z)$/', o);
+    t.true(rgx.test('foobuzz'));
 
-    tester(true);
-    tester(false);
+    o.flag = 'g';
+
+    rgx = g(t, 'foo{bar,baaz}', '/^foo(bar|baaz)$/', o);
+    t.true(rgx.test('foobaaz'));
+    t.true(rgx.test('foobar'));
+    t.false(rgx.test('foobuzz'));
+
+    rgx = g(t, 'foo{bar,b*z}', '/^foo(bar|b.*z)$/', o);
+    t.true(rgx.test('foobuzz'));
+
+    o.globstar = true;
+
+    rgx = g(t, 'foo{bar,baaz}', '/^foo(bar|baaz)$/', o);
+    t.true(rgx.test('foobaaz'));
+    t.true(rgx.test('foobar'));
+    t.false(rgx.test('foobuzz'));
+
+    rgx = g(t, 'foo{bar,b*z}', '/^foo(bar|b([^\\/]*)z)$/', o);
+    t.true(rgx.test('foobuzz'));
+
+    t.end();
 });
 
 test('globrex: complex extended matches', t => {
-    t.plan(15)
+    let rgx, o={ extended:true };
 
-    t.equal(g('http://?o[oz].b*z.com/{*.js,*.html}', 'http://foo.baaz.com/jquery.min.js', { extended:true }), true);
-    t.equal(g('http://?o[oz].b*z.com/{*.js,*.html}', 'http://moz.buzz.com/index.html', { extended:true }), true);
-    t.equal(g('http://?o[oz].b*z.com/{*.js,*.html}', 'http://moz.buzz.com/index.htm', { extended:true }), false);
-    t.equal(g('http://?o[oz].b*z.com/{*.js,*.html}', 'http://moz.bar.com/index.html', { extended:true }), false);
-    t.equal(g('http://?o[oz].b*z.com/{*.js,*.html}', 'http://flozz.buzz.com/index.html', { extended:true }), false);
+    rgx = g(t, 'http://?o[oz].b*z.com/{*.js,*.html}', '/^http:\\/?\\/.o[oz]\\.b.*z\\.com\\/(.*\\.js|.*\\.html)$/', o);
+    t.true(rgx.test('http://foo.baaz.com/jquery.min.js'));
+    t.true(rgx.test('http://moz.buzz.com/index.html'));
+    t.false(rgx.test('http://moz.buzz.com/index.htm'));
+    t.false(rgx.test('http://moz.bar.com/index.html'));
+    t.false(rgx.test('http://flozz.buzz.com/index.html'));
 
-    const tester = globstar => {
-        t.equal(g('http://?o[oz].b*z.com/{*.js,*.html}', 'http://foo.baaz.com/jquery.min.js', { extended:true, globstar, flags:'g' }), true);
-        t.equal(g('http://?o[oz].b*z.com/{*.js,*.html}', 'http://moz.buzz.com/index.html', { extended:true, globstar, flags:'g' }), true);
-        t.equal(g('http://?o[oz].b*z.com/{*.js,*.html}', 'http://moz.buzz.com/index.htm', { extended:true, globstar, flags:'g' }), false);
-        t.equal(g('http://?o[oz].b*z.com/{*.js,*.html}', 'http://moz.bar.com/index.html', { extended:true, globstar, flags:'g' }), false);
-        t.equal(g('http://?o[oz].b*z.com/{*.js,*.html}', 'http://flozz.buzz.com/index.html', { extended:true, globstar, flags:'g' }), false);
-    }
+    o.flags = 'g';
+    o.globstar = true;
 
-    tester(true);
-    tester(false);
+    rgx = g(t, 'http://?o[oz].b*z.com/{*.js,*.html}', '/http:\\/?\\/.o[oz]\\.b([^\\/]*)z\\.com\\/(([^\\/]*)\\.js|([^\\/]*)\\.html)/g', o);
+    t.true(rgx.test('http://foo.baaz.com/jquery.min.js'));
+    t.true(rgx.test('http://moz.buzz.com/index.html'));
+    t.false(rgx.test('http://moz.buzz.com/index.htm'));
+    t.false(rgx.test('http://moz.bar.com/index.html'));
+    t.false(rgx.test('http://flozz.buzz.com/index.html'));
+
+    o.globstar = false;
+
+    rgx = g(t, 'http://?o[oz].b*z.com/{*.js,*.html}', '/http:\\/?\\/.o[oz]\\.b.*z\\.com\\/(.*\\.js|.*\\.html)/g', o);
+    t.true(rgx.test('http://foo.baaz.com/jquery.min.js'));
+    t.true(rgx.test('http://moz.buzz.com/index.html'));
+    t.false(rgx.test('http://moz.buzz.com/index.htm'));
+    t.false(rgx.test('http://moz.bar.com/index.html'));
+    t.false(rgx.test('http://flozz.buzz.com/index.html'));
+
+    t.end();
 });
 
 test('globrex: standard globstar', t => {
-   t.plan(6);
+    let rgx, o={ extended:true, flags:'g' };
 
-    const tester = globstar => {
-        t.equal(g('http://foo.com/**/{*.js,*.html}', 'http://foo.com/bar/jquery.min.js', { extended: true, globstar, flags: 'g' }), true);
-        t.equal(g('http://foo.com/**/{*.js,*.html}', 'http://foo.com/bar/baz/jquery.min.js', { extended: true, globstar, flags: 'g' }), true);
-        t.equal(g('http://foo.com/**', 'http://foo.com/bar/baz/jquery.min.js', { extended: true, globstar, flags: 'g' }), true);
-    }
+    rgx = g(t, 'http://foo.com/**/{*.js,*.html}', '/http:\\/?\\/foo\\.com\\/.*\\/(.*\\.js|.*\\.html)/g', o);
+    t.true(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+    t.true(rgx.test('http://foo.com/bar/jquery.min.js'));
 
-    tester(true);
-    tester(false);
+    rgx = g(t, 'http://foo.com/**', '/http:\\/?\\/foo\\.com\\/.*/g', o);
+    t.true(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+
+    o.globstar = true;
+
+    rgx = g(t, 'http://foo.com/**/{*.js,*.html}', '/http:\\/?\\/foo\\.com\\/((?:[^\\/]*(?:\\/|$))*)(([^\\/]*)\\.js|([^\\/]*)\\.html)/g', o);
+    t.true(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+    t.true(rgx.test('http://foo.com/bar/jquery.min.js'));
+
+    rgx = g(t, 'http://foo.com/**', '/http:\\/?\\/foo\\.com\\/((?:[^\\/]*(?:\\/|$))*)/g', o);
+    t.true(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+
+    t.end();
 });
 
 test('globrex: remaining chars should match themself', t => {
-   t.plan(4);
+    let rgx, o={ extended:true };
+    let testExtStr = '\\/$^+.()=!|,.*';
 
-    const tester = globstar => {
-        const testExtStr = '\\/$^+.()=!|,.*';
-        t.equal(g(testExtStr, testExtStr, { extended:true }), true);
-        t.equal(g(testExtStr, testExtStr, { extended:true, globstar, flags: 'g' }), true);
-    }
+    rgx = g(t, testExtStr, '/^\\/\\/\\$\\^\\+\\.\\(\\)\\=\\!\\|\\,\\..*$/', o);
+    t.true(rgx.test(testExtStr));
 
-    tester(true);
-    tester(false);
+    o.flags = 'g';
+    o.globstar = true;
+    rgx = g(t, testExtStr, '/\\/\\/\\$\\^\\+\\.\\(\\)\\=\\!\\|\\,\\.([^\\/]*)/g', o);
+    t.true(rgx.test(testExtStr));
+
+    t.end();
 });
 
 test('globrex: globstar advance testing', t => {
-   t.plan(36);
+   let rgx, o={ globstar:true };
 
-    t.equal(g('/foo/*', '/foo/bar.txt', { globstar:true }), true);
-    t.equal(g('/foo/**', '/foo/bar.txt', { globstar:true }), true);
-    t.equal(g('/foo/**', '/foo/bar/baz.txt', { globstar:true }), true);
-    t.equal(g('/foo/**', '/foo/bar/baz.txt', { globstar:true }), true);
-    t.equal(g('/foo/*/*.txt', '/foo/bar/baz.txt', { globstar:true }), true);
-    t.equal(g('/foo/**/*.txt', '/foo/bar/baz.txt', { globstar:true }), true);
-    t.equal(g('/foo/**/*.txt', '/foo/bar/baz/qux.txt', { globstar:true }), true);
-    t.equal(g('/foo/**/bar.txt', '/foo/bar.txt', { globstar:true }), true);
-    t.equal(g('/foo/**/**/bar.txt', '/foo/bar.txt', { globstar:true }), true);
-    t.equal(g('/foo/**/*/baz.txt', '/foo/bar/baz.txt', { globstar:true }), true);
-    t.equal(g('/foo/**/*.txt', '/foo/bar.txt', { globstar:true }), true);
-    t.equal(g('/foo/**/**/*.txt', '/foo/bar.txt', { globstar:true }), true);
-    t.equal(g('/foo/**/*/*.txt', '/foo/bar/baz.txt', { globstar:true }), true);
-    t.equal(g('**/*.txt', '/foo/bar/baz/qux.txt', { globstar:true }), true);
-    t.equal(g('**/foo.txt', 'foo.txt', { globstar:true }), true);
-    t.equal(g('**/*.txt', 'foo.txt', { globstar:true }), true);
+    rgx = g(t, '/foo/**', '/^\\/foo\\/((?:[^\\/]*(?:\\/|$))*)$/', o);
+    t.true(rgx.test('/foo/bar.txt'));
+    t.true(rgx.test('/foo/bar/baz.txt'));
+    t.true(rgx.test('/foo/bar/baz.txt'));
 
-    t.equal(g('/foo/*', '/foo/bar/baz.txt', { globstar:true }), false);
-    t.equal(g('/foo/*.txt', '/foo/bar/baz.txt', { globstar:true }), false);
-    t.equal(g('/foo/*/*.txt', '/foo/bar/baz/qux.txt', { globstar:true }), false);
-    t.equal(g('/foo/*/bar.txt', '/foo/bar.txt', { globstar:true }), false);
-    t.equal(g('/foo/*/*/baz.txt', '/foo/bar/baz.txt', { globstar:true }), false);
-    t.equal(g('/foo/**.txt', '/foo/bar/baz/qux.txt', { globstar:true }), false);
-    t.equal(g('/foo/bar**/*.txt', '/foo/bar/baz/qux.txt', { globstar:true }), false);
-    t.equal(g('/foo/bar**', '/foo/bar/baz.txt', { globstar:true }), false);
-    t.equal(g('**/.txt', '/foo/bar/baz/qux.txt', { globstar:true }), false);
-    t.equal(g('*/*.txt', '/foo/bar/baz/qux.txt', { globstar:true }), false);
-    t.equal(g('*/*.txt', 'foo.txt', { globstar:true }), false);
+    rgx = g(t, '/foo/*', '/^\\/foo\\/([^\\/]*)$/', o);
+    t.true(rgx.test('/foo/bar.txt'));
+    t.false(rgx.test('/foo/bar/baz.txt'));
 
-    t.equal(g('http://foo.com/*', 'http://foo.com/bar/baz/jquery.min.js', { extended: true, globstar: true }), false);
-    t.equal(g('http://foo.com/*', 'http://foo.com/bar/baz/jquery.min.js', { globstar: true }), false);
+    rgx = g(t, '/foo/*/*.txt', '/^\\/foo\\/([^\\/]*)\\/([^\\/]*)\\.txt$/', o);
+    t.true(rgx.test('/foo/bar/baz.txt'));
+    t.false(rgx.test('/foo/bar/baz/qux.txt'));
 
-    t.equal(g('http://foo.com/*', 'http://foo.com/bar/baz/jquery.min.js', { globstar: false }), true);
-    t.equal(g('http://foo.com/**', 'http://foo.com/bar/baz/jquery.min.js', { globstar: true }), true);
+    rgx = g(t, '/foo/**/*.txt', '/^\\/foo\\/((?:[^\\/]*(?:\\/|$))*)([^\\/]*)\\.txt$/', o);
+    t.true(rgx.test('/foo/bar/baz.txt'));
+    t.true(rgx.test('/foo/bar/baz/qux.txt'));
+    t.true(rgx.test('/foo/bar.txt'));
 
-    t.equal(g("http://foo.com/*/*/jquery.min.js", "http://foo.com/bar/baz/jquery.min.js", { globstar: true }), true);
-    t.equal(g("http://foo.com/**/jquery.min.js", "http://foo.com/bar/baz/jquery.min.js", { globstar: true }), true);
+    rgx = g(t, '/foo/**/bar.txt', '/^\\/foo\\/((?:[^\\/]*(?:\\/|$))*)bar\\.txt$/', o);
+    t.true(rgx.test('/foo/bar.txt'));
 
-    t.equal(g("http://foo.com/*/*/jquery.min.js", "http://foo.com/bar/baz/jquery.min.js", { globstar: false }), true);
-    t.equal(g("http://foo.com/*/jquery.min.js", "http://foo.com/bar/baz/jquery.min.js", { globstar: false }), true);
-    t.equal(g("http://foo.com/*/jquery.min.js", "http://foo.com/bar/baz/jquery.min.js", { globstar: true }), false);
+    rgx = g(t, '/foo/**/**/bar.txt', '/^\\/foo\\/((?:[^\\/]*(?:\\/|$))*)((?:[^\\/]*(?:\\/|$))*)bar\\.txt$/', o);
+    t.true(rgx.test('/foo/bar.txt'));
+
+    rgx = g(t, '/foo/**/*/baz.txt', '/^\\/foo\\/((?:[^\\/]*(?:\\/|$))*)([^\\/]*)\\/baz\\.txt$/', o);
+    t.true(rgx.test('/foo/bar/baz.txt'));
+
+    rgx = g(t, '/foo/**/**/*.txt', '/^\\/foo\\/((?:[^\\/]*(?:\\/|$))*)((?:[^\\/]*(?:\\/|$))*)([^\\/]*)\\.txt$/', o);
+    t.true(rgx.test('/foo/bar.txt'));
+
+    rgx = g(t, '/foo/**/*/*.txt', '/^\\/foo\\/((?:[^\\/]*(?:\\/|$))*)([^\\/]*)\\/([^\\/]*)\\.txt$/', o);
+    t.true(rgx.test('/foo/bar/baz.txt'));
+
+    rgx = g(t, '**/*.txt', '/^((?:[^\\/]*(?:\\/|$))*)([^\\/]*)\\.txt$/', o);
+    t.true(rgx.test('/foo/bar/baz/qux.txt'));
+    t.true(rgx.test('foo.txt'));
+
+    rgx = g(t, '**/foo.txt', '/^((?:[^\\/]*(?:\\/|$))*)foo\\.txt$/', o);
+    t.true(rgx.test('foo.txt'));
+
+    rgx = g(t, '/foo/*.txt', '/^\\/foo\\/([^\\/]*)\\.txt$/', o);
+    t.false(rgx.test('/foo/bar/baz.txt'));
+
+    rgx = g(t, '/foo/*/bar.txt', '/^\\/foo\\/([^\\/]*)\\/bar\\.txt$/', o);
+    t.false(rgx.test('/foo/bar.txt'));
+
+    rgx = g(t, '/foo/*/*/baz.txt', '/^\\/foo\\/([^\\/]*)\\/([^\\/]*)\\/baz\\.txt$/', o);
+    t.false(rgx.test('/foo/bar/baz.txt'));
+
+    rgx = g(t, '/foo/**.txt', '/^\\/foo\\/([^\\/]*)\\.txt$/', o);
+    t.false(rgx.test('/foo/bar/baz/qux.txt'));
+
+    rgx = g(t, '/foo/bar**/*.txt', '/^\\/foo\\/bar([^\\/]*)\\/([^\\/]*)\\.txt$/', o);
+    t.false(rgx.test('/foo/bar/baz/qux.txt'));
+
+    rgx = g(t, '/foo/bar**', '/^\\/foo\\/bar([^\\/]*)$/', o);
+    t.false(rgx.test('/foo/bar/baz.txt'));
+
+    rgx = g(t, '**/.txt', '/^((?:[^\\/]*(?:\\/|$))*)\\.txt$/', o);
+    t.false(rgx.test('/foo/bar/baz/qux.txt'));
+
+    rgx = g(t, '*/*.txt', '/^([^\\/]*)\\/([^\\/]*)\\.txt$/', o);
+    t.false(rgx.test('/foo/bar/baz/qux.txt'));
+    t.false(rgx.test('foo.txt'));
+
+    rgx = g(t, 'http://foo.com/*', '/^http:\\/?\\/foo\\.com\\/([^\\/]*)$/', { ...o, extended:true });
+    t.false(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+
+    rgx = g(t, 'http://foo.com/*', '/^http:\\/?\\/foo\\.com\\/([^\\/]*)$/', o);
+    t.false(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+
+    rgx = g(t, 'http://foo.com/*', '/^http:\\/?\\/foo\\.com\\/.*$/', { globstar:false });
+    t.true(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+
+    rgx = g(t, 'http://foo.com/**', '/^http:\\/?\\/foo\\.com\\/((?:[^\\/]*(?:\\/|$))*)$/', o);
+    t.true(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+
+    rgx = g(t, 'http://foo.com/*/*/jquery.min.js', '/^http:\\/?\\/foo\\.com\\/([^\\/]*)\\/([^\\/]*)\\/jquery\\.min\\.js$/', o);
+    t.true(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+
+    rgx = g(t, 'http://foo.com/*/*/jquery.min.js', '/^http:\\/?\\/foo\\.com\\/.*\\/.*\\/jquery\\.min\\.js$/', { globstar:false });
+    t.true(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+
+    rgx = g(t, 'http://foo.com/*/jquery.min.js', '/^http:\\/?\\/foo\\.com\\/([^\\/]*)\\/jquery\\.min\\.js$/', o);
+    t.false(rgx.test('http://foo.com/bar/baz/jquery.min.js'));
+
+    t.end();
 });
 
+// Matches zero or ONE occurrence of the given patterns.
 test('globrex: extended extglob ?', t => {
-    t.plan(17);
-
-    // Matches zero or ONE occurrence of the given patterns.
+    let rgx, o={ extended:true };
 
     // if no sign, match litteral
-    t.equal(g('(foo).txt', '(foo).txt', { extended:true }), true);
+    rgx = g(t, '(foo).txt', '/^\\(foo\\)\\.txt$/', o);
+    t.true(rgx.test('(foo).txt'));
 
-    t.equal(g('?(foo).txt', 'foo.txt', { extended:true }), true);
-    t.equal(g('?(foo).txt', '.txt', { extended:true }), true);
-    t.equal(g('?(foo|bar)baz.txt', 'foobaz.txt', { extended:true }), true);
+    rgx = g(t, '?(foo).txt', '/^\\?\\(foo\\)\\.txt$/', { extended:false });
+    t.false(rgx.test('foo.txt'));
 
-    t.equal(g('?(ba[zr]|qux)baz.txt', 'bazbaz.txt', { extended:true }), true);
-    t.equal(g('?(ba[zr]|qux)baz.txt', 'barbaz.txt', { extended:true }), true);
-    t.equal(g('?(ba[zr]|qux)baz.txt', 'quxbaz.txt', { extended:true }), true);
-    t.equal(g('?(ba[!zr]|qux)baz.txt', 'batbaz.txt', { extended:true }), true);
+    rgx = g(t, '?(foo).txt', '/^(foo)?\\.txt$/', o);
+    t.true(rgx.test('foo.txt'));
+    t.true(rgx.test('.txt'));
 
-    t.equal(g('?(ba*|qux)baz.txt', 'batbaz.txt', { extended:true }), true);
-    t.equal(g('?(ba*|qux)baz.txt', 'batttbaz.txt', { extended:true }), true);
-    t.equal(g('?(ba*|qux)baz.txt', 'quxbaz.txt', { extended:true }), true);
+    rgx = g(t, '?(foo|bar)baz.txt', '/^(foo|bar)?baz\\.txt$/', o);
+    t.false(rgx.test('foobarbaz.txt'));
+    t.true(rgx.test('foobaz.txt'));
 
-    t.equal(g('?(ba?(z|r)|qux)baz.txt', 'bazbaz.txt', { extended:true }), true);
-    t.equal(g('?(ba?(z|?(r))|qux)baz.txt', 'bazbaz.txt', { extended:true }), true);
+    rgx = g(t, '?(ba[zr]|qux)baz.txt', '/^(ba[zr]|qux)?baz\\.txt$/', o);
+    t.true(rgx.test('bazbaz.txt'));
+    t.true(rgx.test('barbaz.txt'));
+    t.true(rgx.test('quxbaz.txt'));
+    t.false(rgx.test('bazquxbaz.txt'));
 
-    t.equal(g('?(foo).txt', 'foo.txt', { extended:false }), false);
-    t.equal(g('?(foo|bar)baz.txt', 'foobarbaz.txt', { extended:true }), false);
-    t.equal(g('?(ba[zr]|qux)baz.txt', 'bazquxbaz.txt', { extended:true }), false);
-    t.equal(g('?(ba[!zr]|qux)baz.txt', 'bazbaz.txt', { extended:true }), false);
+    rgx = g(t, '?(ba[!zr]|qux)baz.txt', '/^(ba[^zr]|qux)?baz\\.txt$/', o);
+    t.true(rgx.test('batbaz.txt'));
+    t.false(rgx.test('bazbaz.txt'));
+
+    rgx = g(t, '?(ba*|qux)baz.txt', '/^(ba.*|qux)?baz\\.txt$/', o);
+    t.true(rgx.test('batbaz.txt'));
+    t.true(rgx.test('batttbaz.txt'));
+    t.true(rgx.test('quxbaz.txt'));
+
+    rgx = g(t, '?(ba?(z|r)|qux)baz.txt', '/^(ba(z|r)?|qux)?baz\\.txt$/', o);
+    t.true(rgx.test('bazbaz.txt'));
+
+    rgx = g(t, '?(ba?(z|?(r))|qux)baz.txt', '/^(ba(z|(r)?)?|qux)?baz\\.txt$/', o);
+    t.true(rgx.test('bazbaz.txt'));
+
+    t.end();
 });
 
+// Matches zero or MORE occurrences of the given patterns.
 test('globrex: extended extglob *', t => {
-    t.plan(16);
+    let rgx, o={ extended:true };
 
-    // Matches zero or MORE occurrences of the given patterns.
+    rgx = g(t, '*(foo).txt', '/^(foo)*\\.txt$/', o);
+    t.true(rgx.test('foo.txt'));
 
-    t.equal(g('*(foo).txt', 'foo.txt', { extended:true }), true);
-    t.equal(g('*foo.txt', 'bofoo.txt', { extended:true }), true);
-    t.equal(g('*(foo).txt', 'foofoo.txt', { extended:true }), true);
-    t.equal(g('*(foo).txt', '.txt', { extended:true }), true);
+    rgx = g(t, '*foo.txt', '/^.*foo\\.txt$/', o);
+    t.true(rgx.test('bofoo.txt'));
 
-    t.equal(g('*(fooo).txt', '.txt', { extended:true }), true);
-    t.equal(g('*(fooo).txt', 'foo.txt', { extended:true }), false);
+    rgx = g(t, '*(foo).txt', '/^(foo)*\\.txt$/', o);
+    t.true(rgx.test('foofoo.txt'));
+    t.true(rgx.test('.txt'));
 
-    t.equal(g('*(foo|bar).txt', 'foobar.txt', { extended:true }), true);
-    t.equal(g('*(foo|bar).txt', 'barbar.txt', { extended:true }), true);
-    t.equal(g('*(foo|bar).txt', 'barfoobar.txt', { extended:true }), true);
-    t.equal(g('*(foo|bar).txt', '.txt', { extended:true }), true);
-    t.equal(g('*(foo|ba[rt]).txt', 'bat.txt', { extended:true }), true);
+    rgx = g(t, '*(fooo).txt', '/^(fooo)*\\.txt$/', o);
+    t.false(rgx.test('foo.txt'));
+    t.true(rgx.test('.txt'));
 
-    t.equal(g('*(foo|b*[rt]).txt', 'blat.txt', { extended:true }), true);
-    t.equal(g('*(foo|b*[rt]).txt', 'tlat.txt', { extended:true }), false);
+    rgx = g(t, '*(foo|bar).txt', '/^(foo|bar)*\\.txt$/', o);
+    t.true(rgx.test('barfoobar.txt'));
+    t.true(rgx.test('foobar.txt'));
+    t.true(rgx.test('barbar.txt'));
+    t.true(rgx.test('.txt'));
 
-    t.equal(g('*(*).txt', 'whatever.txt', { extended:true, globstar:true }), true);
-    t.equal(g('*(foo|bar)/**/*.txt', 'foo/hello/world/bar.txt', { extended:true, globstar:true }), true);
-    t.equal(g('*(foo|bar)/**/*.txt', 'foo/world/bar.txt', { extended:true, globstar: true }), true);
+    rgx = g(t, '*(foo|ba[rt]).txt', '/^(foo|ba[rt])*\\.txt$/', o);
+    t.true(rgx.test('bat.txt'));
+
+    rgx = g(t, '*(foo|b*[rt]).txt', '/^(foo|b.*[rt])*\\.txt$/', o);
+    t.false(rgx.test('tlat.txt'));
+    t.true(rgx.test('blat.txt'));
+
+    o.globstar = true;
+    rgx = g(t, '*(*).txt', '/^(([^\\/]*))*\\.txt$/', o);
+    t.true(rgx.test('whatever.txt'));
+
+    rgx = g(t, '*(foo|bar)/**/*.txt', '/^(foo|bar)*\\/((?:[^\\/]*(?:\\/|$))*)([^\\/]*)\\.txt$/', o);
+    t.true(rgx.test('foo/hello/world/bar.txt'));
+    t.true(rgx.test('foo/world/bar.txt'));
+
+    t.end();
 });
 
+// Matches one or more occurrences of the given patterns.
 test('globrex: extended extglob +', t => {
-    t.plan(4);
-    // Matches one or more occurrences of the given patterns.
-    t.equal(g('+(foo).txt', 'foo.txt', { extended:true }), true);
-    t.equal(g('+foo.txt', '+foo.txt', { extended:true }), true);
-    t.equal(g('+(foo).txt', '.txt', { extended:true }), false);
-    t.equal(g('+(foo|bar).txt', 'foobar.txt', { extended:true }), true);
+    let rgx, o={ extended:true };
+
+    rgx = g(t, '+(foo).txt', '/^(foo)+\\.txt$/', o);
+    t.true(rgx.test('foo.txt'));
+
+    rgx = g(t, '+foo.txt', '/^\\+foo\\.txt$/', o);
+    t.true(rgx.test('+foo.txt'));
+
+    rgx = g(t, '+(foo).txt', '/^(foo)+\\.txt$/', o);
+    t.false(rgx.test('.txt'));
+
+    rgx = g(t, '+(foo|bar).txt', '/^(foo|bar)+\\.txt$/', o);
+    t.true(rgx.test('foobar.txt'));
+
+    t.end();
 });
 
+// Matches one of the given patterns.
 test('globrex: extended extglob @', t => {
-    t.plan(6);
-    // Matches one of the given patterns.
-    t.equal(g('@(foo).txt', 'foo.txt', { extended:true }), true);
-    t.equal(g('@foo.txt', '@foo.txt', { extended:true }), true);
-    t.equal(g('@(foo|baz)bar.txt', 'foobar.txt', { extended:true }), true);
-    t.equal(g('@(foo|baz)bar.txt', 'foobazbar.txt', { extended:true }), false);
-    t.equal(g('@(foo|baz)bar.txt', 'foofoobar.txt', { extended:true }), false);
-    t.equal(g('@(foo|baz)bar.txt', 'toofoobar.txt', { extended:true }), false);
+    let rgx, o={ extended:true };
+
+    rgx = g(t, '@(foo).txt', '/^(foo){1}\\.txt$/', o);
+    t.true(rgx.test('foo.txt'));
+
+    rgx = g(t, '@foo.txt', '/^\\@foo\\.txt$/', o);
+    t.true(rgx.test('@foo.txt'));
+
+    rgx = g(t, '@(foo|baz)bar.txt', '/^(foo|baz){1}bar\\.txt$/', o);
+    t.false(rgx.test('foobazbar.txt'));
+    t.false(rgx.test('foofoobar.txt'));
+    t.false(rgx.test('toofoobar.txt'));
+    t.true(rgx.test('foobar.txt'));
+
+    t.end();
 });
 
+// Matches anything except one of the given patterns.
 test('globrex: extended extglob !', t => {
-    t.plan(5);
-    // Matches anything except one of the given patterns.
-    t.equal(g('!(boo).txt', 'foo.txt', { extended: true }), true);
-    t.equal(g('!(foo|baz)bar.txt', 'buzbar.txt', { extended: true }), true);
-    t.equal(g('!bar.txt', '!bar.txt', { extended: true }), true);
-    t.equal(g('!({foo,bar})baz.txt', 'notbaz.txt', { extended: true }), true);
-    t.equal(g('!({foo,bar})baz.txt', 'foobaz.txt', { extended: true }), false);
-});
+    let rgx, o={ extended:true };
 
+    rgx = g(t, '!(boo).txt', '/^(?!boo)([^\\/]*)\\.txt$/', o);
+    t.true(rgx.test('foo.txt'));
+
+    rgx = g(t, '!(foo|baz)bar.txt', '/^(?!foo|baz)([^\\/]*)bar\\.txt$/', o);
+    t.true(rgx.test('buzbar.txt'));
+
+    rgx = g(t, '!bar.txt', '/^\\!bar\\.txt$/', o);
+    t.true(rgx.test('!bar.txt'));
+
+    rgx = g(t, '!({foo,bar})baz.txt', '/^(?!(foo|bar))([^\\/]*)baz\\.txt$/', o);
+    t.false(rgx.test('foobaz.txt'));
+    t.true(rgx.test('notbaz.txt'));
+
+    t.end();
+});
 
 test('globrex: strict', t => {
-    t.plan(3);
+    let rgx;
 
-    t.equal(g('foo//bar.txt', 'foo/bar.txt'), true);
-    t.equal(g('foo///bar.txt', 'foo/bar.txt'), true);
-    t.equal(g('foo///bar.txt', 'foo/bar.txt', {strict:true}), false);
+    rgx = g(t, 'foo//bar.txt', '/^foo\\/?\\/bar\\.txt$/');
+    t.true(rgx.test('foo/bar.txt'));
+
+    rgx = g(t, 'foo///bar.txt', '/^foo\\/?\\/?\\/bar\\.txt$/');
+    t.true(rgx.test('foo/bar.txt'));
+
+    rgx = g(t, 'foo///bar.txt', '/^foo\\/\\/\\/bar\\.txt$/', { strict:true });
+    t.false(rgx.test('foo/bar.txt'));
+
+    t.end();
 });
 
 test('globrex: path segments option', t => {
-    t.plan(18);
-    const opts = { extended:true, windows:false };
+    let rgx, o={ extended:true, windows:false };
 
-    const res1 = globrex('foo/bar/*/baz.{md,js,txt}', { ...opts, globstar:true });
-    t.equal(res1.segments.join('  '), `/^foo$/  /^bar$/  /^([^\\/]*)$/  /^baz\\.(md|js|txt)$/`)
-    t.equal(`${res1.regex}`, `/^foo\\/bar\\/([^\\/]*)\\/baz\\.(md|js|txt)$/`)
+    rgx = globrex('foo/bar/*/baz.{md,js,txt}', { ...o, globstar:true });
+    t.equal(rgx.segments.join('  '), `/^foo$/  /^bar$/  /^([^\\/]*)$/  /^baz\\.(md|js|txt)$/`);
+    t.equal(rgx.regex.toString(), `/^foo\\/bar\\/([^\\/]*)\\/baz\\.(md|js|txt)$/`);
 
-    const res2 = globrex('foo/*/baz.md', opts);
-    t.equal(res2.segments.join('  '), `/^foo$/  /^.*$/  /^baz\\.md$/`);
-    t.equal(`${res2.regex}`, `/^foo\\/.*\\/baz\\.md$/`);
+    rgx = globrex('foo/*/baz.md', o);
+    t.equal(rgx.segments.join('  '), `/^foo$/  /^.*$/  /^baz\\.md$/`);
+    t.equal(`${rgx.regex}`, `/^foo\\/.*\\/baz\\.md$/`);
 
-    const res3 = globrex('foo/**/baz.md', opts);
-    t.equal(res3.segments.join('  '), `/^foo$/  /^.*$/  /^baz\\.md$/`);
-    t.equal(`${res3.regex}`, `/^foo\\/.*\\/baz\\.md$/`);
+    rgx = globrex('foo/**/baz.md', o);
+    t.equal(rgx.segments.join('  '), `/^foo$/  /^.*$/  /^baz\\.md$/`);
+    t.equal(`${rgx.regex}`, `/^foo\\/.*\\/baz\\.md$/`);
 
-    const res4 = globrex('foo/**/baz.md', { ...opts, globstar:true });
-    t.equal(res4.segments.join('  '), `/^foo$/  /^((?:[^\\/]*(?:\\/|$))*)$/  /^baz\\.md$/`);
-    t.equal(`${res4.regex}`, `/^foo\\/((?:[^\\/]*(?:\\/|$))*)baz\\.md$/`);
+    rgx = globrex('foo/**/baz.md', { ...o, globstar:true });
+    t.equal(rgx.segments.join('  '), `/^foo$/  /^((?:[^\\/]*(?:\\/|$))*)$/  /^baz\\.md$/`);
+    t.equal(`${rgx.regex}`, `/^foo\\/((?:[^\\/]*(?:\\/|$))*)baz\\.md$/`);
 
-    const res5 = globrex('foo/**/*.md', opts);
-    t.equal(res5.segments.join('  '), `/^foo$/  /^.*$/  /^.*\\.md$/`);
-    t.equal(`${res5.regex}`, `/^foo\\/.*\\/.*\\.md$/`);
+    rgx = globrex('foo/**/*.md', o);
+    t.equal(rgx.segments.join('  '), `/^foo$/  /^.*$/  /^.*\\.md$/`);
+    t.equal(`${rgx.regex}`, `/^foo\\/.*\\/.*\\.md$/`);
 
-    const res6 = globrex('foo/**/*.md', { ...opts, globstar:true });
-    t.equal(res6.segments.join('  '), `/^foo$/  /^((?:[^\\/]*(?:\\/|$))*)$/  /^([^\\/]*)\\.md$/`);
-    t.equal(`${res6.regex}`, `/^foo\\/((?:[^\\/]*(?:\\/|$))*)([^\\/]*)\\.md$/`);
+    rgx = globrex('foo/**/*.md', { ...o, globstar:true });
+    t.equal(rgx.segments.join('  '), `/^foo$/  /^((?:[^\\/]*(?:\\/|$))*)$/  /^([^\\/]*)\\.md$/`);
+    t.equal(`${rgx.regex}`, `/^foo\\/((?:[^\\/]*(?:\\/|$))*)([^\\/]*)\\.md$/`);
 
-    const res7 = globrex('foo/:/b:az',  opts);
-    t.equal(res7.segments.join('  '), `/^foo$/  /^:$/  /^b:az$/`);
-    t.equal(`${res7.regex}`, `/^foo\\/:\\/b:az$/`);
+    rgx = globrex('foo/:/b:az',  o);
+    t.equal(rgx.segments.join('  '), `/^foo$/  /^:$/  /^b:az$/`);
+    t.equal(`${rgx.regex}`, `/^foo\\/:\\/b:az$/`);
 
-    const res8 = globrex('foo///baz.md', { ...opts, strict:true });
-    t.equal(res8.segments.join('  '), `/^foo$/  /^baz\\.md$/`);
-    t.equal(`${res8.regex}`, `/^foo\\/\\/\\/baz\\.md$/`);
+    rgx = globrex('foo///baz.md', { ...o, strict:true });
+    t.equal(rgx.segments.join('  '), `/^foo$/  /^baz\\.md$/`);
+    t.equal(`${rgx.regex}`, `/^foo\\/\\/\\/baz\\.md$/`);
 
-    const res9 = globrex('foo///baz.md', { ...opts, strict:false });
-    t.equal(res9.segments.join('  '), `/^foo$/  /^baz\\.md$/`);
-    t.equal(`${res9.regex}`, `/^foo\\/?\\/?\\/baz\\.md$/`);
+    rgx = globrex('foo///baz.md', { ...o, strict:false });
+    t.equal(rgx.segments.join('  '), `/^foo$/  /^baz\\.md$/`);
+    t.equal(`${rgx.regex}`, `/^foo\\/?\\/?\\/baz\\.md$/`);
+
+    t.end();
 });
 
 
@@ -414,21 +659,25 @@ test('globrex: path segments option windows', t => {
     t.equal(res5.segments.join('  '), `/^Users$/  /^foo$/  /^bar\\.(md|js)$/`);
     t.equal(`${res5.regex}`, `/^Users\\\\+foo\\\\+bar\\.(md|js)$/`);
 
-    const res6 = globrex(`/Users\\\\foo\\bar.{md,js}`, { windows:true, extended:true });
-    t.equal(res6.segments.join('  '), `/^\\/Users$/  /^foo$/  /^bar\\.(md|js)$/`);
-    t.equal(`${res6.regex}`, `/^\\/Users\\\\+?foo\\\\+bar\\.(md|js)$/`);
+    const res6 = globrex(`Users\\\\foo\\bar.{md,js}`, { windows:true, extended:true });
+    t.equal(res6.segments.join('  '), `/^Users$/  /^foo$/  /^bar\\.(md|js)$/`);
+    t.equal(`${res6.regex}`, `/^Users\\\\+?foo\\\\+bar\\.(md|js)$/`);
 });
 
 test('globrex: stress testing', t => {
-    t.plan(8);
+    let rgx, o={ extended:true };
 
-    t.equal(g('**/*/?yfile.{md,js,txt}', 'foo/bar/baz/myfile.md', { extended:true }), true);
-    t.equal(g('**/*/?yfile.{md,js,txt}', 'foo/baz/myfile.md', { extended:true }), true);
-    t.equal(g('**/*/?yfile.{md,js,txt}', 'foo/baz/tyfile.js', { extended:true }), true);
+    rgx = g(t, '**/*/?yfile.{md,js,txt}', '/^.*\\/.*\\/.yfile\\.(md|js|txt)$/', o);
+    t.true(rgx.test('foo/bar/baz/myfile.md'));
+    t.true(rgx.test('foo/baz/myfile.md'));
+    t.true(rgx.test('foo/baz/tyfile.js'));
 
-    t.equal(g('[[:digit:]_.]/file.js', '1/file.js', { extended:true }), true);
-    t.equal(g('[[:digit:]_.]/file.js', '2/file.js', { extended:true }), true);
-    t.equal(g('[[:digit:]_.]/file.js', '_/file.js', { extended:true }), true);
-    t.equal(g('[[:digit:]_.]/file.js', './file.js', { extended:true }), true);
-    t.equal(g('[[:digit:]_.]/file.js', 'z/file.js', { extended:true }), false);
+    rgx = g(t, '[[:digit:]_.]/file.js', '/^[\\d_\\.]\\/file\\.js$/', o);
+    t.true(rgx.test('1/file.js'));
+    t.true(rgx.test('2/file.js'));
+    t.true(rgx.test('_/file.js'));
+    t.true(rgx.test('./file.js'));
+    t.false(rgx.test('z/file.js'));
+
+    t.end();
 });
