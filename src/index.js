@@ -185,12 +185,16 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
                     // globstar is disabled, so treat any number of "*" as one
                     add('.*');
                 } else {
+                    console.log('> starCount', starCount);
+                    console.log('> prevChar', prevChar);
+                    console.log('> nextChar', nextChar);
                     // globstar is enabled, so determine if this is a globstar segment
                     let isGlobstar =
                         starCount > 1 && // multiple "*"'s
                         (prevChar === SEP || prevChar === undefined) && // from the start of the segment
                         (nextChar === SEP || nextChar === undefined); // to the end of the segment
                     if (isGlobstar) {
+                        console.log('IS GLOB STAR');
                         // it's a globstar, so match zero or more path segments
                         add(`((?:[^${SEP}]*(?:${SEP}|$))*)`, true, true)
                         i++; // move over the SEP
