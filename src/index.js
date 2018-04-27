@@ -65,7 +65,7 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
                 break;
             case '/':
             case '\\':
-                add(SEP, isWin);
+                add(SEP);
                 if (c === n && !strict) reStr += '?';
                 break;
             case '(':
