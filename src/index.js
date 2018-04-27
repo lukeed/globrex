@@ -2,7 +2,7 @@ const isWin = process.platform === 'win32';
 
 // TODO: star & shit
 const { sep } = require('path');
-const SEP = isWin ? '\\' : '\/';
+const SEP = isWin ? '\\\\' : '\/';
 
 // /^((?:[^\/]*(?:\/|$))*)a\.js$/
 // /^((?:[^\\]*(?:\\|$))*)\\a\.js$/
@@ -65,7 +65,7 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
                 break;
             case '/':
             case '\\':
-                add(SEP);
+                add('\\' + sep);
                 if (c === n && !strict) reStr += '?';
                 break;
             case '(':
