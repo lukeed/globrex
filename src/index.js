@@ -1,7 +1,7 @@
 const isWin = process.platform === 'win32';
 
 // TODO: star & shit
-const { sep } = path;
+const { sep } = require('path');
 const SEP = isWin ? '\\\\' : '\/';
 
 /**
