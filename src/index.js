@@ -17,6 +17,8 @@ const SEP = isWin ? '\\\\' : '\/';
 function globrex(glob, { extended = false, globstar = false, strict = false, flags = '', windows = isWin} = {}) {
     let reStr = '';
 
+    glob = glob.replace(/\/|\\/g, SEP);
+
     // The individual path segments - array of regexp for each segment in a path
     let segment = '';
     let segments = [];
