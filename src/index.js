@@ -31,6 +31,7 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
     const add = (str, split, addLastPart) => {
         reStr += str;
         if (split) {
+            console.log('>>>> add :: split', str);
             if (addLastPart) segment += str;
             if (segment !== '') {
                 if (!flags || !~flags.indexOf('g')) segment = `^${segment}$`;
@@ -211,6 +212,7 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
                 }
                 break;
             default:
+                console.log('> default', c);
                 add(c);
         }
     }
