@@ -2,7 +2,10 @@ const isWin = process.platform === 'win32';
 
 // TODO: star & shit
 const { sep } = require('path');
-const SEP = isWin ? '\\\\' : '\/';
+const SEP = isWin ? '\\\\\+' : '\/';
+
+// /^((?:[^\/]*(?:\/|$))*)a\.js$/
+// /^((?:[^\\]*(?:\\|$))*)\\a\.js$/
 
 /**
  * Convert any glob pattern to a JavaScript Regexp object
@@ -18,7 +21,7 @@ const SEP = isWin ? '\\\\' : '\/';
 function globrex(glob, { extended = false, globstar = false, strict = false, flags = '', windows = isWin} = {}) {
     let reStr = '';
 
-    glob = glob.replace(/\/|\\/g, SEP);
+    glob = glob.replace(/\/|\\+/g, SEP);
 
     // The individual path segments - array of regexp for each segment in a path
     let segment = '';
