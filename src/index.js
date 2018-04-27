@@ -1,5 +1,8 @@
 const isWin = process.platform === 'win32';
 
+// TODO: star & shit
+const SEP = isWin ? '\\\\' : '\\/';
+
 /**
  * Convert any glob pattern to a JavaScript Regexp object
  * @param {String} glob Glob pattern to convert
@@ -53,16 +56,10 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
             case '=':
                 add('\\' + c)
                 break;
-            case '\\':
-                add('\\\\\+', windows);
-                if (n === '\\') {
-                    ++i; // skip next
-                    if (!strict) reStr += '?';
-                }
-                break;
             case '/':
-                add('\\' + c, !windows);
-                if (n === '/' && !strict) reStr += '?';
+            case '\\':
+                add(SEP, isWin);
+                if (c === n && !strict) reStr += '?';
                 break;
             case '(':
                 if (ext.length) {
@@ -78,7 +75,7 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
                     if (type === '@') {
                         add('{1}');
                     } else if (type === '!') {
-                        add('([^\/]*)');
+                        add('([^' + SEP + ']*)');
                     } else {
                         add(type);
                     }
@@ -191,15 +188,15 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
                     // globstar is enabled, so determine if this is a globstar segment
                     let isGlobstar =
                         starCount > 1 && // multiple "*"'s
-                        (prevChar === '/' || prevChar === undefined) && // from the start of the segment
-                        (nextChar === '/' || nextChar === undefined); // to the end of the segment
+                        (prevChar === SEP || prevChar === undefined) && // from the start of the segment
+                        (nextChar === SEP || nextChar === undefined); // to the end of the segment
                     if (isGlobstar) {
                         // it's a globstar, so match zero or more path segments
-                        add('((?:[^/]*(?:/|$))*)', true, true)
-                        i++; // move over the "/"
+                        add(`((?:[^${SEP}]*(?:${SEP}|$))*)`, true, true)
+                        i++; // move over the SEP
                     } else {
                         // it's not a globstar, so only match one path segment
-                        add('([^/]*)');
+                        add(`([^${SEP}]*)`);
                     }
                 }
                 break;
