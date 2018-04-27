@@ -2,7 +2,7 @@ const isWin = process.platform === 'win32';
 
 // TODO: star & shit
 const { sep } = require('path');
-const SEP = isWin ? '\\\\\+' : '\/';
+const SEP = isWin ? '\\\\' : '\/';
 
 // /^((?:[^\/]*(?:\/|$))*)a\.js$/
 // /^((?:[^\\]*(?:\\|$))*)\\a\.js$/
@@ -202,7 +202,7 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
                     if (isGlobstar) {
                         console.log('IS GLOB STAR');
                         // it's a globstar, so match zero or more path segments
-                        add(`((?:[^${SEP}]*(?:${SEP}|$))*)`, true, true)
+                        add(`((?:[^${SEP}]*(?:${SEP}|$))*)`, true, !isWin);
                         i++; // move over the SEP
                     } else {
                         // it's not a globstar, so only match one path segment
