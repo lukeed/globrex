@@ -1,7 +1,7 @@
 const isWin = process.platform === 'win32';
 
 // TODO: star & shit
-const SEP = isWin ? '\\\\' : '\\/';
+const SEP = isWin ? '\\\\' : '\/';
 
 /**
  * Convert any glob pattern to a JavaScript Regexp object
