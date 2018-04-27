@@ -1,6 +1,7 @@
 const isWin = process.platform === 'win32';
 
 // TODO: star & shit
+const { sep } = path;
 const SEP = isWin ? '\\\\' : '\/';
 
 /**
@@ -193,8 +194,8 @@ function globrex(glob, { extended = false, globstar = false, strict = false, fla
                     // globstar is enabled, so determine if this is a globstar segment
                     let isGlobstar =
                         starCount > 1 && // multiple "*"'s
-                        (prevChar === SEP || prevChar === undefined) && // from the start of the segment
-                        (nextChar === SEP || nextChar === undefined); // to the end of the segment
+                        (prevChar === sep || prevChar === undefined) && // from the start of the segment
+                        (nextChar === sep || nextChar === undefined); // to the end of the segment
                     if (isGlobstar) {
                         console.log('IS GLOB STAR');
                         // it's a globstar, so match zero or more path segments
